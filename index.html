@@ -71,24 +71,38 @@
         return data.rank ?? null;
       }
 
-      function animateValue(el, start, end, duration = 1500) {
+      /**
+       * 2 秒ほどランダムな 5 桁を高速で表示し、
+       * 最後に本来の順位 (end) を表示して解決する。
+       *
+       * @param {HTMLElement} el   表示先の要素
+       * @param {number}      end  本来の順位
+       * @param {number}      scrambleTime  ランダム演出の継続時間(ms)
+       * @param {number}      frameInterval フレーム間隔(ms) ─ 30 fps ≒ 33ms
+       */
+      function animateValue(el, end, scrambleTime = 2000, frameInterval = 33) {
         return new Promise((resolve) => {
-          const range = Math.abs(end - start);
-          if (range === 0) {
-            el.textContent = end;
-            return resolve();
-          }
-          const stepTime = Math.max(Math.floor(duration / range), 20);
-          let current = start;
-          const increment = end > start ? 1 : -1;
-          const timer = setInterval(() => {
-            current += increment;
-            el.textContent = current.toLocaleString();
-            if (current === end) {
-              clearInterval(timer);
+          const startTime = performance.now();
+
+          // 内部で前回描画時刻を保持しておき、33ms ごとに更新
+          function scramble(now) {
+            // 規定時間まではランダム数字を表示
+            if (now - startTime < scrambleTime) {
+              if (!el._lastUpdate || now - el._lastUpdate >= frameInterval) {
+                el.textContent = Math.floor(
+                  10000 + Math.random() * 90000
+                ).toLocaleString();
+                el._lastUpdate = now;
+              }
+              requestAnimationFrame(scramble);
+            } else {
+              // 規定時間を過ぎたら本来の順位を表示して完了
+              el.textContent = end.toLocaleString();
               resolve();
             }
-          }, stepTime);
+          }
+
+          requestAnimationFrame(scramble);
         });
       }
 
@@ -116,10 +130,9 @@
               fetchRank(name1),
               fetchRank(name2),
             ]);
-            const maxStart = Math.max(rank1 ?? 100000, rank2 ?? 100000, 10000);
             await Promise.all([
-              animateValue(r1El, maxStart, rank1 ?? maxStart),
-              animateValue(r2El, maxStart, rank2 ?? maxStart),
+              animateValue(r1El, rank1),
+              animateValue(r2El, rank2),
             ]);
 
             let winnerText = "";
