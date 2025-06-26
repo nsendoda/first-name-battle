@@ -35,6 +35,25 @@
         font-size: 3rem;
         font-weight: bold;
       }
+      /* === 追加: コラム用カード === */
+      .stats-card {
+        border: 1px solid #d0d7de;
+        border-radius: 12px;
+        padding: 1rem;
+        margin-top: 1rem;
+        background: #ffffff;
+        display: inline-block;
+        text-align: left;
+        font-size: 0.9rem;
+      }
+      .stats-card div {
+        margin: 0.25rem 0;
+        white-space: nowrap;
+      }
+      .pref-line span {
+        display: inline-block;
+        min-width: 6em;
+      }
     </style>
   </head>
   <body>
@@ -54,39 +73,26 @@
           <span id="rank2" class="rank">?</span>
         </div>
         <div class="result" id="winnerText"></div>
+        <!-- 追加: 統計コラム -->
+        <div id="statsCard" class="stats-card" style="display: none"></div>
       </div>
     </div>
 
     <script>
-      async function fetchRank(name) {
+      async function fetchStats(name) {
         const res = await fetch(`/api/rank?name=${encodeURIComponent(name)}`);
-        if (!res.ok) {
-          throw new Error(`API ${res.status}`);
-        }
-        const contentType = res.headers.get("content-type") || "";
-        if (!contentType.includes("application/json")) {
-          throw new Error("API did not return JSON. Did you deploy Functions?");
-        }
+        if (!res.ok) throw new Error(`API ${res.status}`);
         const data = await res.json();
-        return data.rank ?? null;
+        return data; // {rank,total,prefs}
       }
 
       /**
-       * 2 秒ほどランダムな 5 桁を高速で表示し、
-       * 最後に本来の順位 (end) を表示して解決する。
-       *
-       * @param {HTMLElement} el   表示先の要素
-       * @param {number}      end  本来の順位
-       * @param {number}      scrambleTime  ランダム演出の継続時間(ms)
-       * @param {number}      frameInterval フレーム間隔(ms) ─ 30 fps ≒ 33ms
+       * ランダム 5 桁を 2 秒間 30 fps で回し、最後に順位を表示
        */
-      function animateValue(el, end, scrambleTime = 2000, frameInterval = 33) {
+      function animateRank(el, end, scrambleTime = 2000, frameInterval = 33) {
         return new Promise((resolve) => {
           const startTime = performance.now();
-
-          // 内部で前回描画時刻を保持しておき、33ms ごとに更新
-          function scramble(now) {
-            // 規定時間まではランダム数字を表示
+          function step(now) {
             if (now - startTime < scrambleTime) {
               if (!el._lastUpdate || now - el._lastUpdate >= frameInterval) {
                 el.textContent = Math.floor(
@@ -94,15 +100,13 @@
                 ).toLocaleString();
                 el._lastUpdate = now;
               }
-              requestAnimationFrame(scramble);
+              requestAnimationFrame(step);
             } else {
-              // 規定時間を過ぎたら本来の順位を表示して完了
               el.textContent = end.toLocaleString();
               resolve();
             }
           }
-
-          requestAnimationFrame(scramble);
+          requestAnimationFrame(step);
         });
       }
 
@@ -115,37 +119,73 @@
             alert("両方入力してください");
             return;
           }
-          const battleArea = document.getElementById("battleArea");
-          battleArea.style.display = "block";
+
+          // 初期化
           document.getElementById(
             "vsTitle"
           ).textContent = `${name1} VS ${name2}`;
           const r1El = document.getElementById("rank1");
           const r2El = document.getElementById("rank2");
-          r1El.textContent = "?";
-          r2El.textContent = "?";
+          r1El.textContent = r2El.textContent = "?";
           document.getElementById("winnerText").textContent = "";
+          const statsCard = document.getElementById("statsCard");
+          statsCard.style.display = "none";
+
+          document.getElementById("battleArea").style.display = "block";
+
           try {
-            const [rank1, rank2] = await Promise.all([
-              fetchRank(name1),
-              fetchRank(name2),
-            ]);
-            await Promise.all([
-              animateValue(r1El, rank1),
-              animateValue(r2El, rank2),
+            const [data1, data2] = await Promise.all([
+              fetchStats(name1),
+              fetchStats(name2),
             ]);
 
-            let winnerText = "";
-            if (rank1 == null || rank2 == null) {
-              winnerText = "片方の苗字が見つかりませんでした…";
+            const rank1 = data1.rank ?? 100000;
+            const rank2 = data2.rank ?? 100000;
+
+            await Promise.all([
+              animateRank(r1El, rank1),
+              animateRank(r2El, rank2),
+            ]);
+
+            // 勝敗判定
+            let result = "";
+            if (data1.rank == null || data2.rank == null) {
+              result = "片方の苗字が見つかりませんでした…";
             } else if (rank1 === rank2) {
-              winnerText = "引き分け！";
+              result = "引き分け！";
             } else if (rank1 < rank2) {
-              winnerText = `${name1} の勝利！`;
+              result = `${name1} の勝利！`;
             } else {
-              winnerText = `${name2} の勝利！`;
+              result = `${name2} の勝利！`;
             }
-            document.getElementById("winnerText").textContent = winnerText;
+            document.getElementById("winnerText").textContent = result;
+
+            // === コラム生成 ===
+            const total1Txt =
+              data1.total != null ? `${data1.total.toLocaleString()}人` : "?";
+            const total2Txt =
+              data2.total != null ? `${data2.total.toLocaleString()}人` : "?";
+
+            let html = `<div><strong>人数：</strong>${total1Txt} vs ${total2Txt}</div>`;
+            html += `<div style="margin-top:.5rem;"><strong>主要都道府県：</strong></div>`;
+
+            const maxLines = Math.max(data1.prefs.length, data2.prefs.length);
+            for (let i = 0; i < maxLines; i++) {
+              const leftPref = data1.prefs[i]
+                ? `${data1.prefs[i].name} ${data1.prefs[
+                    i
+                  ].count.toLocaleString()}人`
+                : "";
+              const rightPref = data2.prefs[i]
+                ? `${data2.prefs[i].name} ${data2.prefs[
+                    i
+                  ].count.toLocaleString()}人`
+                : "";
+              html += `<div class="pref-line"><span>${leftPref}</span><span style="margin-left:2rem;">${rightPref}</span></div>`;
+            }
+
+            statsCard.innerHTML = html;
+            statsCard.style.display = "inline-block";
           } catch (e) {
             console.error(e);
             document.getElementById("winnerText").textContent =
