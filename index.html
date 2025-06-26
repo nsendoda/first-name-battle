@@ -79,30 +79,40 @@
     </div>
 
     <script>
+      // --- API fetch ---
       async function fetchStats(name) {
         const res = await fetch(`/api/rank?name=${encodeURIComponent(name)}`);
         if (!res.ok) throw new Error(`API ${res.status}`);
-        const data = await res.json();
-        return data; // {rank,total,prefs}
+        const json = await res.json();
+        return {
+          rank: json.rank ?? null,
+          total: json.total ?? null,
+          prefs: Array.isArray(json.prefs) ? json.prefs : [],
+          famous: Array.isArray(json.famous) ? json.famous : [],
+        };
       }
 
-      /**
-       * ランダム 5 桁を 2 秒間 30 fps で回し、最後に順位を表示
-       */
-      function animateRank(el, end, scrambleTime = 2000, frameInterval = 33) {
+      // --- rank animation (5桁乱数 → 本来の順位 ＋ "位") ---
+      function animateRank(
+        el,
+        endRank,
+        scrambleTime = 2000,
+        frameInterval = 33
+      ) {
         return new Promise((resolve) => {
-          const startTime = performance.now();
+          const start = performance.now();
           function step(now) {
-            if (now - startTime < scrambleTime) {
+            if (now - start < scrambleTime) {
               if (!el._lastUpdate || now - el._lastUpdate >= frameInterval) {
-                el.textContent = Math.floor(
-                  10000 + Math.random() * 90000
-                ).toLocaleString();
+                el.textContent =
+                  Math.floor(10000 + Math.random() * 90000).toLocaleString() +
+                  "位";
                 el._lastUpdate = now;
               }
               requestAnimationFrame(step);
             } else {
-              el.textContent = end.toLocaleString();
+              el.textContent =
+                (endRank != null ? endRank.toLocaleString() : "?") + "位";
               resolve();
             }
           }
@@ -110,6 +120,7 @@
         });
       }
 
+      // --- click handler ---
       document
         .getElementById("fightBtn")
         .addEventListener("click", async () => {
@@ -120,18 +131,17 @@
             return;
           }
 
-          // 初期化
-          document.getElementById(
-            "vsTitle"
-          ).textContent = `${name1} VS ${name2}`;
-          const r1El = document.getElementById("rank1");
-          const r2El = document.getElementById("rank2");
-          r1El.textContent = r2El.textContent = "?";
-          document.getElementById("winnerText").textContent = "";
+          const vsTitle = document.getElementById("vsTitle");
+          const rank1El = document.getElementById("rank1");
+          const rank2El = document.getElementById("rank2");
+          const resultEl = document.getElementById("winnerText");
           const statsCard = document.getElementById("statsCard");
-          statsCard.style.display = "none";
 
           document.getElementById("battleArea").style.display = "block";
+          vsTitle.textContent = `${name1} VS ${name2}`;
+          rank1El.textContent = rank2El.textContent = "?位";
+          resultEl.textContent = "";
+          statsCard.style.display = "none";
 
           try {
             const [data1, data2] = await Promise.all([
@@ -143,53 +153,67 @@
             const rank2 = data2.rank ?? 100000;
 
             await Promise.all([
-              animateRank(r1El, rank1),
-              animateRank(r2El, rank2),
+              animateRank(rank1El, rank1),
+              animateRank(rank2El, rank2),
             ]);
 
-            // 勝敗判定
-            let result = "";
+            // --- winner text ---
+            let winner;
             if (data1.rank == null || data2.rank == null) {
-              result = "片方の苗字が見つかりませんでした…";
+              winner = "片方の苗字が見つかりませんでした…";
             } else if (rank1 === rank2) {
-              result = "引き分け！";
+              winner = "引き分け！";
             } else if (rank1 < rank2) {
-              result = `${name1} の勝利！`;
+              winner = `${name1} の勝利！`;
             } else {
-              result = `${name2} の勝利！`;
+              winner = `${name2} の勝利！`;
             }
-            document.getElementById("winnerText").textContent = result;
+            resultEl.textContent = winner;
 
-            // === コラム生成 ===
+            // --- stats card ---
+            const prefs1 = data1.prefs;
+            const prefs2 = data2.prefs;
+            const famous1 = data1.famous;
+            const famous2 = data2.famous;
+
             const total1Txt =
               data1.total != null ? `${data1.total.toLocaleString()}人` : "?";
             const total2Txt =
               data2.total != null ? `${data2.total.toLocaleString()}人` : "?";
 
             let html = `<div><strong>人数：</strong>${total1Txt} vs ${total2Txt}</div>`;
-            html += `<div style="margin-top:.5rem;"><strong>主要都道府県：</strong></div>`;
 
-            const maxLines = Math.max(data1.prefs.length, data2.prefs.length);
-            for (let i = 0; i < maxLines; i++) {
-              const leftPref = data1.prefs[i]
-                ? `${data1.prefs[i].name} ${data1.prefs[
-                    i
-                  ].count.toLocaleString()}人`
-                : "";
-              const rightPref = data2.prefs[i]
-                ? `${data2.prefs[i].name} ${data2.prefs[
-                    i
-                  ].count.toLocaleString()}人`
-                : "";
-              html += `<div class="pref-line"><span>${leftPref}</span><span style="margin-left:2rem;">${rightPref}</span></div>`;
+            // 都道府県
+            if (prefs1.length || prefs2.length) {
+              html += `<div style="margin-top:.5rem;"><strong>主要都道府県：</strong></div>`;
+              const maxLines = Math.max(prefs1.length, prefs2.length);
+              for (let i = 0; i < maxLines; i++) {
+                const left = prefs1[i]
+                  ? `${prefs1[i].name} ${prefs1[i].count.toLocaleString()}人`
+                  : "";
+                const right = prefs2[i]
+                  ? `${prefs2[i].name} ${prefs2[i].count.toLocaleString()}人`
+                  : "";
+                html += `<div class="pref-line"><span>${left}</span><span style="margin-left:2rem;">${right}</span></div>`;
+              }
+            }
+
+            // 著名人
+            if (famous1.length || famous2.length) {
+              html += `<div style="margin-top:.5rem;"><strong>著名人：</strong></div>`;
+              const maxF = Math.max(famous1.length, famous2.length, 2);
+              for (let i = 0; i < maxF; i++) {
+                const l = famous1[i] ?? "";
+                const r = famous2[i] ?? "";
+                html += `<div class="pref-line"><span>${l}</span><span style="margin-left:2rem;">${r}</span></div>`;
+              }
             }
 
             statsCard.innerHTML = html;
             statsCard.style.display = "inline-block";
-          } catch (e) {
-            console.error(e);
-            document.getElementById("winnerText").textContent =
-              "エラーが発生しました";
+          } catch (err) {
+            console.error(err);
+            resultEl.textContent = "エラーが発生しました";
           }
         });
     </script>
