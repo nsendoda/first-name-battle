@@ -19,7 +19,10 @@ export const onRequestGet = async ({ request }) => {
   console.log(target);
   const html = await resp.text();
   console.log(html);
-  const m = html.match(/全国順位[^<]*<\/th>\s*<td[^>]*>([\d,]+)位/);
+let m = html.match(/全国順位[^0-9]*([0-9,]+)位/);
+  if(!m){
+    m = html.match(/全国順位[^<]*<\\/th>\\s*<td[^>]*>([0-9,]+)位/);
+  }
   if (!m) {
     return new Response(JSON.stringify({ rank: null }), {
       headers: { "Content-Type": "application/json" },
