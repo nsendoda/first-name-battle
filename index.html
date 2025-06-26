@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>苗字バトル 💥</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body{font-family:sans-serif;text-align:center;padding:2rem;background:#f6f8fa}
+    .container{max-width:600px;margin:auto}
+    input{padding:.6rem 1rem;margin:.5rem;font-size:1.1rem}
+    button{padding:.7rem 2rem;font-size:1.1rem;margin-top:1rem;cursor:pointer}
+    .result{margin-top:2rem;font-size:1.5rem;min-height:4rem}
+    .rank{font-size:3rem;font-weight:bold}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>苗字バトル 💥</h1>
+    <div>
+      <input id="name1" placeholder="プレイヤー名1（姓）">
+      <input id="name2" placeholder="プレイヤー名2（姓）">
+    </div>
+    <button id="fightBtn">Fight!!</button>
+
+    <div id="battleArea" style="display:none;">
+      <h2 id="vsTitle"></h2>
+      <div>
+        <span id="rank1" class="rank">?</span>
+        <span style="margin:0 1rem;">VS</span>
+        <span id="rank2" class="rank">?</span>
+      </div>
+      <div class="result" id="winnerText"></div>
+    </div>
+  </div>
+
+  <script>
+  async function fetchRank(name){
+    const res = await fetch(`/api/rank?name=${encodeURIComponent(name)}`);
+    if(!res.ok) throw new Error('fetch error');
+    const data = await res.json();
+    return data.rank ?? null;
+  }
+
+  function animateValue(el,start,end,duration){
+    const range=Math.abs(end-start);
+    if(range===0){el.textContent=end;return;}
+    const stepTime=Math.max(Math.floor(duration/range),20);
+    let current=start;
+    const increment=end>start?1:-1;
+    const timer=setInterval(()=>{
+      current+=increment;
+      el.textContent=current.toLocaleString();
+      if(current===end){clearInterval(timer);}
+    },stepTime);
+  }
+
+  document.getElementById('fightBtn').addEventListener('click',async()=>{
+    const name1=document.getElementById('name1').value.trim();
+    const name2=document.getElementById('name2').value.trim();
+    if(!name1||!name2){alert('両方入力してください');return;}
+    document.getElementById('battleArea').style.display='block';
+    document.getElementById('vsTitle').textContent=`${name1} VS ${name2}`;
+
+    const r1El=document.getElementById('rank1');
+    const r2El=document.getElementById('rank2');
+    r1El.textContent='?';
+    r2El.textContent='?';
+    document.getElementById('winnerText').textContent='';
+
+    try{
+      const [rank1,rank2]=await Promise.all([
+        fetchRank(name1),
+        fetchRank(name2)
+      ]);
+
+      const maxStart=Math.max(rank1??100000,rank2??100000,10000);
+      animateValue(r1El,maxStart,rank1??maxStart,1500);
+      animateValue(r2El,maxStart,rank2??maxStart,1500);
+
+      setTimeout(()=>{
+        if(rank1==null||rank2==null){
+          document.getElementById('winnerText').textContent='片方の苗字が見つかりませんでした…';
+          return;
+        }
+        if(rank1===rank2){
+          document.getElementById('winnerText').textContent='引き分け！';
+        }else if(rank1<rank2){
+          document.getElementById('winnerText').textContent=`${name1} の勝利！`;
+        }else{
+          document.getElementById('winnerText').textContent=`${name2} の勝利！`;
+        }
+      },1600);
+
+    }catch(e){
+      console.error(e);
+      document.getElementById('winnerText').textContent='エラーが発生しました';
+    }
+  });
+  </script>
+</body>
+</html>
