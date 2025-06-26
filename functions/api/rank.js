@@ -16,7 +16,9 @@ export const onRequestGet = async ({ request }) => {
   const resp = await fetch(target, {
     headers: { "User-Agent": "Mozilla/5.0" },
   });
+  console.log(target);
   const html = await resp.text();
+  console.log(html);
   const m = html.match(/全国順位[^<]*<\/th>\s*<td[^>]*>([\d,]+)位/);
   if (!m) {
     return new Response(JSON.stringify({ rank: null }), {
