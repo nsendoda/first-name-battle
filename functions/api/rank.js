@@ -40,7 +40,7 @@ export const onRequestGet = async ({ request }) => {
 
   /* ---------- 都道府県別人数（上位 6） ---------- */
   const prefs = [];
-  const prefRe = />([\u4E00-\u9FFF]{2,8})<\/a>[^0-9]*([0-9,]+)人/g; // <a>東京都</a> 300,000人
+  const prefRe = />([\u4E00-\u9FFF]{2,8})<\/a>[^0-9]{0,20}?([0-9,]+)人/g; // 間に改行やタグが入っても拾う
   const suffix = /[都道府県]$/;
   let pm;
   while ((pm = prefRe.exec(html)) !== null) {
@@ -48,14 +48,15 @@ export const onRequestGet = async ({ request }) => {
     const num = parseInt(pm[2].replace(/,/g, ""), 10);
     if (suffix.test(prefName) && num) {
       prefs.push({ name: prefName, count: num });
-      if (prefs.length >= 6) break;
+      if (prefs.length >= 3) break; // ★ 上位 3 県で打ち切り
     }
   }
 
   /* ---------- 著名人（上位 2） ---------- */
   const famous = [];
   const famSec = html.split("著名人")[1] || "";
-  const famRe = /<li>\s*<a[^>]*>([^<(（]+)<\/a>\s*[（(]([^）)]+)[）)]/g;
+  const famRe =
+    /<li[^>]*>\s*<a[^>]*>([^<(（]+)<\/a>[^（(]*[（(]([^）)]+)[）)]/g; // <li>…</li> に改行が入ってもOK
   let fm;
   while ((fm = famRe.exec(famSec)) !== null) {
     const person = fm[1].trim(); // 田中 将大
