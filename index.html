@@ -183,26 +183,28 @@
 
             let html = `<div><strong>人数：</strong>${total1Txt} vs ${total2Txt}</div>`;
 
-            // 都道府県
-            if (prefs1.length || prefs2.length) {
-              html += `<div style="margin-top:.5rem;"><strong>主要都道府県：</strong></div>`;
-              const maxLines = Math.max(prefs1.length, prefs2.length);
-              for (let i = 0; i < maxLines; i++) {
-                const left = prefs1[i]
-                  ? `${prefs1[i].name} ${prefs1[i].count.toLocaleString()}人`
-                  : "";
-                const right = prefs2[i]
-                  ? `${prefs2[i].name} ${prefs2[i].count.toLocaleString()}人`
-                  : "";
+            // --- 都道府県 -------------
+            html += `<div style="margin-top:.5rem;"><strong>主要都道府県：</strong></div>`;
+            for (let i = 0; i < Math.max(prefs1.length, prefs2.length); i++) {
+              const left = prefs1[i]
+                ? `${prefs1[i].name} ${prefs1[i].count.toLocaleString()}人`
+                : "";
+              const right = prefs2[i]
+                ? `${prefs2[i].name} ${prefs2[i].count.toLocaleString()}人`
+                : "";
+              if (left || right) {
                 html += `<div class="pref-line"><span>${left}</span><span style="margin-left:2rem;">${right}</span></div>`;
               }
             }
 
-            // 著名人
+            // --- 著名人 -------------
             if (famous1.length || famous2.length) {
               html += `<div style="margin-top:.5rem;"><strong>著名人：</strong></div>`;
-              const maxF = Math.max(famous1.length, famous2.length, 2);
-              for (let i = 0; i < maxF; i++) {
+              for (
+                let i = 0;
+                i < Math.max(famous1.length, famous2.length);
+                i++
+              ) {
                 const l = famous1[i] ?? "";
                 const r = famous2[i] ?? "";
                 html += `<div class="pref-line"><span>${l}</span><span style="margin-left:2rem;">${r}</span></div>`;

@@ -38,31 +38,28 @@ export const onRequestGet = async ({ request }) => {
     ? parseInt(totalMatch[1].replace(/,/g, ""), 10)
     : null;
 
-  /* ---------- 都道府県別人数（上位 6） ---------- */
+  /* ------ ③ 都道府県別人数 (上位 6) ------ */
+  const prefectureSuffix = /[都道府県]$/; // 47 都道府県は必ず末尾がこれ
   const prefs = [];
-  const prefRe = /([\u4E00-\u9FFF]{2,5})[^0-9]{0,15}?([0-9,]+)人/g;
+  const prefRe = />([\u4E00-\u9FFF]{2,8})<\/a>[^0-9]*([0-9,]+)人/g; // <a>東京</a> 300人
   let pm;
   while ((pm = prefRe.exec(html)) !== null) {
-    const pref = pm[1];
+    const name = pm[1];
     const num = parseInt(pm[2].replace(/,/g, ""), 10);
-    if (num && !prefs.find((p) => p.name === pref))
-      prefs.push({ name: pref, count: num });
-    if (prefs.length >= 6) break;
+    if (prefectureSuffix.test(name) && num) {
+      prefs.push({ name, count: num });
+      if (prefs.length >= 6) break;
+    }
   }
 
-  /* ---------- 著名人（上位 2） ---------- */
+  /* ------ ④ 著名人 (上位 2) ------ */
   const famous = [];
   const famSec = html.split("著名人")[1] || "";
-  const famRe = />\s*([^<（(]+?)\s*[（(]([^）)]+)[）)]<\/a>/g;
+  // 著名人 <li><a>田中 将大</a>（プロ野球選手） のような行を拾う
+  const famRe = /<li>\s*<a[^>]*>([^<(（]+)<\/a>\s*[（(]([^）)]+)[）)]/g;
   let fm;
   while ((fm = famRe.exec(famSec)) !== null) {
-    const person = fm[1].trim(); // 田中 将大
-    const genre = fm[2].trim(); // プロ野球選手
-    if (person && genre) famous.push(`${person}（${genre}）`);
+    famous.push(`${fm[1].trim()}（${fm[2].trim()}）`);
     if (famous.length >= 2) break;
   }
-
-  return new Response(JSON.stringify({ rank, total, prefs, famous }), {
-    headers: { "Content-Type": "application/json" },
-  });
 };
