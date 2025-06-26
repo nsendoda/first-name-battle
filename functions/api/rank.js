@@ -19,16 +19,13 @@ export const onRequestGet = async ({ request }) => {
   console.log(target);
   const html = await resp.text();
   console.log(html);
-let m = html.match(/全国順位[^0-9]*([0-9,]+)位/);
-  if(!m){
-    m = html.match(/全国順位[^<]*<\\/th>\\s*<td[^>]*>([0-9,]+)位/);
-  }
+  const m = html.match(/全国順位[^0-9]*([\d,]+)位/);
   if (!m) {
     return new Response(JSON.stringify({ rank: null }), {
       headers: { "Content-Type": "application/json" },
     });
   }
-  const rank = parseInt(m[1].replace(/,/g, ""), 10);
+  const rank = m ? parseInt(m[1].replace(/,/g, ""), 10) : null;
   return new Response(JSON.stringify({ rank }), {
     headers: { "Content-Type": "application/json" },
   });
